@@ -1,4 +1,4 @@
-# --- 修正后的最终版本 (Final Corrected Version) ---
+# cfdns.py
 import requests
 import traceback
 import time
