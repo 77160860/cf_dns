@@ -1,3 +1,6 @@
+CloudflareSpeedTest优选IP，实时更新列表页面。https://ip.164746.xyz
+CloudflareSpeedTest优选IP，Top接口(默认)https://ip.164746.xyz/ipTop.html；
+Top10接口https://ip.164746.xyz/ipTop10.html。
 #### 配置方法
 1. fork本项目
 2. 打开项目的settings，Actions secrets and variables，action  ，new  Repository secrets 逐个添加以下的内容
