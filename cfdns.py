@@ -1,4 +1,4 @@
-# --- 最终版本：从 stock.hostmonit.com 获取IP ---
+# --- 从 stock.hostmonit.com 获取IP ---
 import requests
 import traceback
 import time
