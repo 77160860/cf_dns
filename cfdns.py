@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 
 # --- 从环境变量获取配置 ---
 try:
+# --- 修正点：以下代码块已正确缩进 ---
 CF_API_TOKEN = os.environ["CF_API_TOKEN"]
 CF_ZONE_ID = os.environ["CF_ZONE_ID"]
 CF_DNS_NAME = os.environ["CF_DNS_NAME"]
