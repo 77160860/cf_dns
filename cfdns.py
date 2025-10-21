@@ -6,15 +6,14 @@ import os
 import json
 from bs4 import BeautifulSoup
 
-# --- 从环境变量获取配置 ---
 try:
-# API 密钥
-CF_API_TOKEN    =   os.environ["CF_API_TOKEN"]
-CF_ZONE_ID      =   os.environ["CF_ZONE_ID"]
-CF_DNS_NAME     =   os.environ["CF_DNS_NAME"]
+# 必需的环境变量
+CF_API_TOKEN = os.environ["CF_API_TOKEN"]
+CF_ZONE_ID = os.environ["CF_ZONE_ID"]
+CF_DNS_NAME = os.environ["CF_DNS_NAME"]
 
-# pushplus_token
-PUSHPLUS_TOKEN  =   os.environ["PUSHPLUS_TOKEN"]
+# 可选的环境变量 (使用 .get() 方法，如果不存在则返回 None)
+PUSHPLUS_TOKEN = os.environ.get("PUSHPLUS_TOKEN")
 except KeyError as e:
 print(f"错误：环境变量 {e} 未设置，请在 GitHub Secrets 中配置。")
 exit(1)
