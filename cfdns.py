@@ -9,15 +9,15 @@ import json
 
 # --- 使用 try...except 块安全地读取配置 ---
 try:
-# 必需的环境变量
-CF_API_TOKEN = os.environ["CF_API_TOKEN"]
-CF_ZONE_ID = os.environ["CF_ZONE_ID"]
-CF_DNS_NAME = os.environ["CF_DNS_NAME"]
-# 可选的环境变量
-PUSHPLUS_TOKEN = os.environ.get("PUSHPLUS_TOKEN")
-except KeyError as e:
-print(f"错误：必需的环境变量 {e} 未设置，请检查配置。")
-exit(1)
+    # 必需的环境变量
+    CF_API_TOKEN = os.environ["CF_API_TOKEN"]
+    CF_ZONE_ID = os.environ["CF_ZONE_ID"]
+    CF_DNS_NAME = os.environ["CF_DNS_NAME"]
+    # 可选的环境变量
+    PUSHPLUS_TOKEN = os.environ.get("PUSHPLUS_TOKEN")
+    except KeyError as e:
+    print(f"错误：必需的环境变量 {e} 未设置，请检查配置。")
+    exit(1)
 
 # 用于Cloudflare API的请求头
 cf_api_headers = {
