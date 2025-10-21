@@ -1,10 +1,10 @@
-# 从 stock.hostmonit.com 获取IP ---
+# --- 最终版本：从 stock.hostmonit.com 获取IP ---
 import requests
 import traceback
 import time
 import os
 import json
-from bs4 import BeautifulSoup # 必须导入这个库来解析网页
+from bs4 import BeautifulSoup
 
 # --- 从环境变量获取配置 ---
 try:
