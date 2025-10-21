@@ -16,7 +16,8 @@ def require_env(key: str) -> str:
 CF_API_TOKEN   = require_env("CF_API_TOKEN")
 CF_ZONE_ID     = require_env("CF_ZONE_ID")
 CF_DNS_NAME    = require_env("CF_DNS_NAME")
-PUSHPLUS_TOKEN = require_env("PUSHPLUS_TOKEN")
+# 可选：未设置则跳过 PushPlus 推送
+PUSHPLUS_TOKEN = os.getenv("PUSHPLUS_TOKEN", "")
 
 API_BASE = "https://api.cloudflare.com/client/v4"
 REQ_TIMEOUT = 10
@@ -161,6 +162,9 @@ def update_dns_record(record: dict, ip: str):
 
 def push_plus(content: str):
     if not content:
+        return
+    if not PUSHPLUS_TOKEN:
+        print("PUSHPLUS_TOKEN 未设置，跳过 PushPlus 推送。")
         return
     url = "http://www.pushplus.plus/send"
     data = {
