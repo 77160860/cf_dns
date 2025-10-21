@@ -35,7 +35,7 @@ def _extract_ipv4s(text: str):
             result.append(ip)
     return result
 
-def get_cf_ips_from_cloudflareyes(url="https://ip.164746.xyz/ipTop.html", timeout=10, max_retries=5):
+def get_cf_ips_from_cloudflareyes(url="https://cf.090227.xyz/CloudFlareYes", timeout=10, max_retries=5):
     for attempt in range(max_retries):
         try:
             resp = requests.get(url, timeout=timeout)
