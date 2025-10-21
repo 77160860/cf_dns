@@ -1,5 +1,8 @@
-默认接口:https://stock.hostmonit.com/CloudFlareYes
-可选接口:https://ip.164746.xyz/ipTop.html
+默认接口:https://ip.164746.xyz 
+
+可选接口:
+https://ip.164746.xyz/ipTop10.html
+https://stock.hostmonit.com/CloudFlareYes
 #### 配置方法
 1. fork本项目
 2. 打开项目的settings，Actions secrets and variables，action  ，new  Repository secrets 逐个添加以下的内容
