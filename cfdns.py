@@ -6,12 +6,12 @@ import json
 import re
 
 # API 密钥
-CF_API_TOKEN    = os.environ["CF_API_TOKEN"]
-CF_ZONE_ID      = os.environ["CF_ZONE_ID"]
-CF_DNS_NAME     = os.environ["CF_DNS_NAME"]
+CF_API_TOKEN = os.environ["CF_API_TOKEN"]
+CF_ZONE_ID   = os.environ["CF_ZONE_ID"]
+CF_DNS_NAME  = os.environ["CF_DNS_NAME"]
 
-# pushplus_token
-PUSHPLUS_TOKEN  = os.environ["PUSHPLUS_TOKEN"]
+# pushplus_token（可留空）
+PUSHPLUS_TOKEN = os.environ.get("PUSHPLUS_TOKEN", "")
 
 headers = {
     'Authorization': f'Bearer {CF_API_TOKEN}',
@@ -48,46 +48,68 @@ def get_cf_ips_from_cloudflareyes(url="https://cf.090227.xyz/CloudFlareYes", tim
             print(f"get_cf_ips_from_cloudflareyes failed ({attempt + 1}/{max_retries}): {e}")
     return []
 
-# 获取 DNS 记录
-def get_dns_records(name):
-    def_info = []
+def list_a_records(name):
+    # 只拉取该名称的 A 记录
     url = f'https://api.cloudflare.com/client/v4/zones/{CF_ZONE_ID}/dns_records'
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        records = response.json().get('result', [])
-        for record in records:
-            if record.get('name') == name:
-                def_info.append(record.get('id'))
-        return def_info
-    else:
-        print('Error fetching DNS records:', response.text)
-        return []
+    params = {'type': 'A', 'name': name, 'per_page': 100}
+    try:
+        r = requests.get(url, headers=headers, params=params, timeout=10)
+        if r.status_code == 200:
+            return r.json().get('result', [])
+        print('Error fetching DNS records:', r.text)
+    except Exception as e:
+        print(f"list_a_records exception: {e}")
+    return []
 
-# 更新 DNS 记录
-def update_dns_record(record_id, name, cf_ip):
+def delete_dns_record(record_id):
     url = f'https://api.cloudflare.com/client/v4/zones/{CF_ZONE_ID}/dns_records/{record_id}'
+    try:
+        r = requests.delete(url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            print(f"cf_dns_delete success: ---- Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} ---- id：{record_id}")
+            return True
+        else:
+            print(f"cf_dns_delete ERROR: ---- Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} ---- STATUS: {r.status_code} ---- MESSAGE: {r.text}")
+            return False
+    except Exception as e:
+        traceback.print_exc()
+        print(f"cf_dns_delete EXCEPTION: ---- Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} ---- MESSAGE: {e}")
+        return False
+
+def delete_all_a_records(name):
+    records = list_a_records(name)
+    ok = True
+    for rec in records:
+        rid = rec.get('id')
+        if rid:
+            ok = delete_dns_record(rid) and ok
+    return ok
+
+def create_dns_record(name, cf_ip):
+    url = f'https://api.cloudflare.com/client/v4/zones/{CF_ZONE_ID}/dns_records'
     data = {
         'type': 'A',
         'name': name,
         'content': cf_ip
-        # 如需代理或 TTL，可按需增加：'proxied': False, 'ttl': 120
+        # 可按需：'proxied': False, 'ttl': 120
     }
-
     try:
-        response = requests.put(url, headers=headers, json=data)
-        if response.status_code == 200:
-            print(f"cf_dns_change success: ---- Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} ---- ip：{cf_ip}")
-            return f"ip:{cf_ip} 解析 {name} 成功"
+        resp = requests.post(url, headers=headers, json=data, timeout=10)
+        if resp.status_code == 200:
+            print(f"cf_dns_create success: ---- Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} ---- ip：{cf_ip}")
+            return f"ip:{cf_ip} 新增 {name} 成功"
         else:
-            print(f"cf_dns_change ERROR: ---- Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} ---- STATUS: {response.status_code} ---- MESSAGE: {response.text}")
-            return f"ip:{cf_ip} 解析 {name} 失败"
+            print(f"cf_dns_create ERROR: ---- Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} ---- STATUS: {resp.status_code} ---- MESSAGE: {resp.text}")
+            return f"ip:{cf_ip} 新增 {name} 失败"
     except Exception as e:
         traceback.print_exc()
-        print(f"cf_dns_change EXCEPTION: ---- Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} ---- MESSAGE: {e}")
-        return f"ip:{cf_ip} 解析 {name} 失败"
+        print(f"cf_dns_create EXCEPTION: ---- Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} ---- MESSAGE: {e}")
+        return f"ip:{cf_ip} 新增 {name} 失败"
 
-# 消息推送
 def push_plus(content):
+    if not PUSHPLUS_TOKEN:
+        print("push_plus skipped: PUSHPLUS_TOKEN is empty")
+        return
     url = 'http://www.pushplus.plus/send'
     data = {
         "token": PUSHPLUS_TOKEN,
@@ -104,29 +126,28 @@ def push_plus(content):
         print(f"push_plus error: {e}")
 
 def main():
-    # 从 CloudFlareYes 页面抓取优选 IP（IPv4）
+    # 1) 抓取 CloudFlareYes 页面里的 IPv4 列表
     ip_addresses = get_cf_ips_from_cloudflareyes()
     if not ip_addresses:
         print("Error: 未从 CloudFlareYes 获取到任何 IP")
         return
 
-    dns_records = get_dns_records(CF_DNS_NAME)
-    if not dns_records:
-        print("Error: No DNS records found for", CF_DNS_NAME)
-        return
+    # 可选：限制最大创建数量（不设置则使用全部抓到的 IP）
+    max_records_env = os.getenv("CF_MAX_RECORDS")
+    target_ips = ip_addresses[:int(max_records_env)] if max_records_env else ip_addresses
 
-    # 保持数量一致：不要超过 DNS 记录数量
-    num_ips = min(len(ip_addresses), len(dns_records))
+    # 2) 删除该名称下的全部 A 记录
+    if not delete_all_a_records(CF_DNS_NAME):
+        print("Error: 删除现有 A 记录时出现错误（已尽力删除继续执行）")
 
-    push_plus_content = []
-    for index in range(num_ips):
-        ip_address = ip_addresses[index]
-        # 执行 DNS 变更
-        dns = update_dns_record(dns_records[index], CF_DNS_NAME, ip_address)
-        push_plus_content.append(dns)
+    # 3) 按抓到的 IP 数量逐条创建 A 记录
+    results = []
+    for ip in target_ips:
+        results.append(create_dns_record(CF_DNS_NAME, ip))
 
-    if push_plus_content:
-        push_plus('\n'.join(push_plus_content))
+    # 4) 推送结果
+    if results:
+        push_plus('\n'.join(results))
 
 if __name__ == '__main__':
     main()
