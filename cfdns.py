@@ -15,7 +15,7 @@ try:
     CF_DNS_NAME = os.environ["CF_DNS_NAME"]
     # 可选的环境变量
     PUSHPLUS_TOKEN = os.environ.get("PUSHPLUS_TOKEN")
-    except KeyError as e:
+except KeyError as e:
     print(f"错误：必需的环境变量 {e} 未设置，请检查配置。")
     exit(1)
 
