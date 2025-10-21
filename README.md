@@ -1,4 +1,4 @@
-默认接口:https://ip.164746.xyz 
+默认接口:https://ip.164746.xyz/ipTop.html
 
 可选接口:
 https://ip.164746.xyz/ipTop10.html 
