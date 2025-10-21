@@ -1,7 +1,8 @@
 默认接口:https://ip.164746.xyz 
 
 可选接口:
-https://ip.164746.xyz/ipTop10.html
+https://ip.164746.xyz/ipTop10.html 
+
 https://stock.hostmonit.com/CloudFlareYes
 #### 配置方法
 1. fork本项目
