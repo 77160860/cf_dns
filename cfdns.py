@@ -19,6 +19,11 @@ CF_DNS_NAME    = require_env("CF_DNS_NAME")
 # 可选：未设置则跳过 PushPlus 推送
 PUSHPLUS_TOKEN = os.getenv("PUSHPLUS_TOKEN", "")
 
+# 可选增强项：拉取 Hostmonit 的备用 URL / 代理 / 兜底 IP
+CFY_URLS_ENV = os.getenv("CFY_URLS", "").strip()
+CFY_PROXY    = os.getenv("CFY_PROXY", "").strip()
+FALLBACK_IPS = os.getenv("FALLBACK_IPS", "").strip()
+
 API_BASE = "https://api.cloudflare.com/client/v4"
 REQ_TIMEOUT = 10
 
@@ -32,15 +37,34 @@ ipv4_re = re.compile(r"^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d))
 def is_ipv4(s: str) -> bool:
     return bool(ipv4_re.match(s.strip()))
 
+def parse_ipv4_from_text(text: str):
+    ips = re.findall(
+        r"\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b",
+        text or ""
+    )
+    cleaned, seen = [], set()
+    for ip in (i.strip() for i in ips):
+        if ip and is_ipv4(ip) and ip not in seen:
+            cleaned.append(ip)
+            seen.add(ip)
+    return cleaned
+
 def get_cf_speed_test_ip(timeout=10, max_retries=5):
     """
-    从 stock.hostmonit 获取优选 IP 列表，增强请求头避免 403，
-    同时尝试 HTTPS 与 HTTP 两个 URL，返回去重后的 IPv4 列表（保序）。
+    从 stock.hostmonit 获取优选 IP 列表，尽量规避 403。
+    - 支持自定义 URL 列表（CFY_URLS）
+    - 支持出站代理（CFY_PROXY）
+    - 失败时可用 FALLBACK_IPS 兜底
+    返回去重后的 IPv4 列表（保序）。
     """
-    urls = [
-        "https://stock.hostmonit.com/CloudFlareYes",
-        "http://stock.hostmonit.com/CloudFlareYes",
-    ]
+    if CFY_URLS_ENV:
+        urls = [u.strip() for u in CFY_URLS_ENV.split(",") if u.strip()]
+    else:
+        urls = [
+            "https://stock.hostmonit.com/CloudFlareYes",
+            "http://stock.hostmonit.com/CloudFlareYes",
+        ]
+
     session = requests.Session()
     browser_headers = {
         "User-Agent": (
@@ -56,6 +80,10 @@ def get_cf_speed_test_ip(timeout=10, max_retries=5):
         "X-Requested-With": "XMLHttpRequest",
     }
 
+    proxies = None
+    if CFY_PROXY:
+        proxies = {"http": CFY_PROXY, "https": CFY_PROXY}
+
     last_err = None
     for attempt in range(1, max_retries + 1):
         for url in urls:
@@ -65,6 +93,7 @@ def get_cf_speed_test_ip(timeout=10, max_retries=5):
                     headers=browser_headers,
                     timeout=timeout,
                     allow_redirects=True,
+                    proxies=proxies,
                 )
                 if r.status_code != 200 or not r.text:
                     raise RuntimeError(f"HTTP {r.status_code}")
@@ -104,10 +133,7 @@ def get_cf_speed_test_ip(timeout=10, max_retries=5):
 
                 # 文本回退：从响应中提取 IPv4
                 if not ips:
-                    ips = re.findall(
-                        r"\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b",
-                        r.text,
-                    )
+                    ips = parse_ipv4_from_text(r.text)
 
                 # 规范化去重保序
                 cleaned, seen = [], set()
@@ -125,6 +151,13 @@ def get_cf_speed_test_ip(timeout=10, max_retries=5):
                 print(f"get_cf_speed_test_ip failed ({attempt}/{max_retries}) url={url}: {e}")
                 continue
         time.sleep(1)
+
+    # 若完全失败，尝试 FALLBACK_IPS
+    if FALLBACK_IPS:
+        fallback_list = parse_ipv4_from_text(FALLBACK_IPS.replace(",", " "))
+        if fallback_list:
+            print("使用 FALLBACK_IPS 兜底。")
+            return fallback_list
 
     if last_err:
         traceback.print_exc()
