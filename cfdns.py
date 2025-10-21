@@ -34,72 +34,98 @@ def is_ipv4(s: str) -> bool:
 
 def get_cf_speed_test_ip(timeout=10, max_retries=5):
     """
-    从 https://stock.hostmonit.com/CloudFlareYes 获取优选 IP 列表。
-    兼容 JSON 或纯文本，返回去重后的 IPv4 列表（保序）。
+    从 stock.hostmonit 获取优选 IP 列表，增强请求头避免 403，
+    同时尝试 HTTPS 与 HTTP 两个 URL，返回去重后的 IPv4 列表（保序）。
     """
-    url = "https://stock.hostmonit.com/CloudFlareYes"
+    urls = [
+        "https://stock.hostmonit.com/CloudFlareYes",
+        "http://stock.hostmonit.com/CloudFlareYes",
+    ]
+    session = requests.Session()
+    browser_headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/122.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Referer": "https://stock.hostmonit.com/CF-IP/",
+        "Origin": "https://stock.hostmonit.com",
+        "Connection": "keep-alive",
+        "X-Requested-With": "XMLHttpRequest",
+    }
+
     last_err = None
     for attempt in range(1, max_retries + 1):
-        try:
-            r = requests.get(
-                url,
-                headers={"User-Agent": "Mozilla/5.0"},
-                timeout=timeout
-            )
-            if r.status_code != 200 or not r.text:
-                raise RuntimeError(f"HTTP {r.status_code}")
-
-            ips = []
-
-            # 优先尝试 JSON 结构（常见：{"status":"success","data":[{"ip":"x.x.x.x",...}, ...] }）
+        for url in urls:
             try:
-                data = r.json()
-                if isinstance(data, dict):
-                    items = (
-                        data.get("data")
-                        or data.get("ips")
-                        or data.get("result")
-                        or data.get("list")
-                        or []
-                    )
-                    if isinstance(items, list):
-                        for item in items:
+                r = session.get(
+                    url,
+                    headers=browser_headers,
+                    timeout=timeout,
+                    allow_redirects=True,
+                )
+                if r.status_code != 200 or not r.text:
+                    raise RuntimeError(f"HTTP {r.status_code}")
+
+                ips = []
+
+                # 优先尝试 JSON（常见：{"status":"success","data":[{"ip":"x.x.x.x",...}] }）
+                try:
+                    data = r.json()
+                    if isinstance(data, dict):
+                        items = (
+                            data.get("data")
+                            or data.get("ips")
+                            or data.get("result")
+                            or data.get("list")
+                            or []
+                        )
+                        if isinstance(items, list):
+                            for item in items:
+                                if isinstance(item, dict):
+                                    val = item.get("ip") or item.get("host") or item.get("address") or ""
+                                    if val:
+                                        ips.append(val)
+                                elif isinstance(item, str):
+                                    ips.append(item)
+                    elif isinstance(data, list):
+                        for item in data:
                             if isinstance(item, dict):
                                 val = item.get("ip") or item.get("host") or item.get("address") or ""
                                 if val:
                                     ips.append(val)
                             elif isinstance(item, str):
                                 ips.append(item)
-                elif isinstance(data, list):
-                    for item in data:
-                        if isinstance(item, dict):
-                            val = item.get("ip") or item.get("host") or item.get("address") or ""
-                            if val:
-                                ips.append(val)
-                        elif isinstance(item, str):
-                            ips.append(item)
-            except ValueError:
-                # 非 JSON，走文本回退
-                pass
+                except ValueError:
+                    # 非 JSON，走文本回退
+                    pass
 
-            # 文本回退：直接从页面抓取 IPv4
-            if not ips:
-                ips = re.findall(
-                    r"\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b",
-                    r.text
-                )
+                # 文本回退：从响应中提取 IPv4
+                if not ips:
+                    ips = re.findall(
+                        r"\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b",
+                        r.text,
+                    )
 
-            # 规范化去重保序，仅保留合法 IPv4
-            cleaned, seen = [], set()
-            for ip in (i.strip() for i in ips):
-                if ip and is_ipv4(ip) and ip not in seen:
-                    cleaned.append(ip)
-                    seen.add(ip)
-            return cleaned
-        except Exception as e:
-            last_err = e
-            print(f"get_cf_speed_test_ip failed ({attempt}/{max_retries}): {e}")
-            time.sleep(1)
+                # 规范化去重保序
+                cleaned, seen = [], set()
+                for ip in (i.strip() for i in ips):
+                    if ip and is_ipv4(ip) and ip not in seen:
+                        cleaned.append(ip)
+                        seen.add(ip)
+
+                if cleaned:
+                    return cleaned
+                else:
+                    raise RuntimeError("no IPv4 parsed")
+            except Exception as e:
+                last_err = e
+                print(f"get_cf_speed_test_ip failed ({attempt}/{max_retries}) url={url}: {e}")
+                continue
+        time.sleep(1)
+
     if last_err:
         traceback.print_exc()
     return []
@@ -117,9 +143,9 @@ def get_dns_records(name: str, rtype: str = "A"):
             if data.get("success"):
                 return data.get("result", [])
             else:
-                print("Error fetching DNS records:", data)
+                print("获取 DNS 记录失败:", data)
         else:
-            print("HTTP error fetching DNS records:", r.status_code, r.text)
+            print("获取 DNS 记录 HTTP 错误:", r.status_code, r.text)
     except Exception:
         traceback.print_exc()
     return []
@@ -142,7 +168,6 @@ def update_dns_record(record: dict, ip: str):
     try:
         r = requests.put(url, headers=headers, json=payload, timeout=REQ_TIMEOUT)
         ok = False
-        body = {}
         if r.ok:
             try:
                 body = r.json()
@@ -190,13 +215,13 @@ def main():
     # 获取最新优选 IP 列表
     ip_addresses = get_cf_speed_test_ip()
     if not ip_addresses:
-        print("No valid IPs fetched; aborting.")
+        print("未获取到有效 IP，终止。")
         return
 
     # 获取目标域名的 A 记录
     dns_records = get_dns_records(CF_DNS_NAME, "A")
     if not dns_records:
-        print("Error: No A records found for", CF_DNS_NAME)
+        print("错误：未找到域名的 A 记录：", CF_DNS_NAME)
         return
 
     # 逐个更新（按最小数量对齐）
