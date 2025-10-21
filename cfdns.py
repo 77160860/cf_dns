@@ -8,12 +8,13 @@ from bs4 import BeautifulSoup
 
 # --- 从环境变量获取配置 ---
 try:
-# --- 修正点：以下代码块已正确缩进 ---
-CF_API_TOKEN = os.environ["CF_API_TOKEN"]
-CF_ZONE_ID = os.environ["CF_ZONE_ID"]
-CF_DNS_NAME = os.environ["CF_DNS_NAME"]
-# PUSHPLUS_TOKEN 是可选的
-PUSHPLUS_TOKEN = os.environ.get("PUSHPLUS_TOKEN")
+# API 密钥
+CF_API_TOKEN    =   os.environ["CF_API_TOKEN"]
+CF_ZONE_ID      =   os.environ["CF_ZONE_ID"]
+CF_DNS_NAME     =   os.environ["CF_DNS_NAME"]
+
+# pushplus_token
+PUSHPLUS_TOKEN  =   os.environ["PUSHPLUS_TOKEN"]
 except KeyError as e:
 print(f"错误：环境变量 {e} 未设置，请在 GitHub Secrets 中配置。")
 exit(1)
