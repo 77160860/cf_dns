@@ -8,4 +8,4 @@ https://ip.164746.xyz/ipTop.html
 #### 测试运行
 返回action，打开cf_dns_push,运行run workflow。
 #### 时间设定，
-在项目中的.github/workflows中有个main.yml默认的是4小时执行一次。
+在项目中的.github/workflows中有个main.yml默认的是1小时执行一次。
