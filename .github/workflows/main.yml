@@ -2,7 +2,7 @@ name: cf_dns_push
 
 on:
   schedule:
-    - cron: '0 */2 * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:  # 允许手动触发
 
 jobs:
